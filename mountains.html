@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D UI Mountain Scroll — Test Website</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #07090f; }
+    body {
+      min-height: 560vh;
+      font-family: "Kanit", sans-serif;
+      color: #d7e2ea;
+      background:
+        radial-gradient(circle at 50% 12%, rgba(91, 105, 128, .24), transparent 34%),
+        linear-gradient(180deg, #080a12 0%, #0c0c0c 48%, #05060a 100%);
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 30;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px clamp(18px, 4vw, 52px);
+      pointer-events: none;
+    }
+
+    .brand, .back-link {
+      pointer-events: auto;
+      border: 1px solid rgba(215, 226, 234, .18);
+      background: rgba(12, 12, 12, .42);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 60px rgba(0, 0, 0, .28);
+    }
+
+    .brand {
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      font-weight: 900;
+      letter-spacing: -.06em;
+    }
+
+    .back-link {
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .scene-shell {
+      position: fixed;
+      inset: 0;
+      height: 100vh;
+      perspective: 1100px;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at var(--mx, 50%) var(--my, 42%), rgba(187, 204, 215, .16), transparent 26%),
+        radial-gradient(circle at 50% 72%, rgba(182, 0, 168, .12), transparent 42%);
+    }
+
+    .scene-shell::before {
+      content: "";
+      position: absolute;
+      inset: -20%;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 70px 70px;
+      transform: perspective(900px) rotateX(72deg) translateY(28vh) translateZ(-360px);
+      opacity: .28;
+      mask-image: linear-gradient(to bottom, transparent, #000 30%, transparent 82%);
+    }
+
+    .world {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      transform:
+        translateZ(var(--camera-z, -120px))
+        rotateX(var(--camera-x, 62deg))
+        rotateY(var(--camera-y, 0deg))
+        rotateZ(var(--camera-r, 0deg))
+        translate3d(var(--camera-pan-x, 0px), var(--camera-pan-y, 0px), 0);
+      transition: transform .08s linear;
+    }
+
+    .orbit-path {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(82vw, 880px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(215, 226, 234, .2);
+      border-radius: 50%;
+      transform: translate(-50%, -50%) rotateX(76deg) translateZ(-38px);
+      box-shadow:
+        0 0 80px rgba(190, 76, 0, .18),
+        inset 0 0 70px rgba(182, 0, 168, .12);
+    }
+
+    .orbit-path::before,
+    .orbit-path::after {
+      content: "";
+      position: absolute;
+      inset: 14%;
+      border: 1px dashed rgba(215, 226, 234, .18);
+      border-radius: inherit;
+    }
+
+    .orbit-path::after {
+      inset: 30%;
+      border-color: rgba(187, 204, 215, .12);
+    }
+
+    .mountain {
+      --x: 0px;
+      --y: 0px;
+      --z: 0px;
+      --s: 1;
+      --h: 210px;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: calc(170px * var(--s));
+      height: calc(var(--h) * var(--s));
+      transform-style: preserve-3d;
+      transform: translate3d(var(--x), var(--y), var(--z));
+      filter: drop-shadow(0 36px 32px rgba(0,0,0,.55));
+    }
+
+    .face {
+      position: absolute;
+      inset: auto 0 0 0;
+      margin: auto;
+      width: 0;
+      height: 0;
+      border-left: calc(85px * var(--s)) solid transparent;
+      border-right: calc(85px * var(--s)) solid transparent;
+      border-bottom: calc(var(--h) * var(--s)) solid rgba(92, 103, 120, .92);
+      transform-origin: 50% 100%;
+    }
+
+    .front { border-bottom-color: #798594; transform: rotateY(0deg) translateZ(calc(48px * var(--s))); }
+    .right { border-bottom-color: #343b4c; transform: rotateY(90deg) translateZ(calc(48px * var(--s))); }
+    .left { border-bottom-color: #566170; transform: rotateY(-90deg) translateZ(calc(48px * var(--s))); }
+    .back { border-bottom-color: #1d2433; transform: rotateY(180deg) translateZ(calc(48px * var(--s))); }
+
+    .peak {
+      position: absolute;
+      left: 50%;
+      top: 15%;
+      width: 46%;
+      height: 30%;
+      background: linear-gradient(135deg, rgba(255,255,255,.94), rgba(187,204,215,.22));
+      clip-path: polygon(50% 0, 100% 100%, 0 100%);
+      transform: translateX(-50%) translateZ(calc(62px * var(--s)));
+      opacity: .9;
+      mix-blend-mode: screen;
+    }
+
+    .m1 { --x: -95px; --y: -170px; --z: 70px; --s: 1.58; --h: 240px; }
+    .m2 { --x: -420px; --y: -5px; --z: -110px; --s: 1.05; --h: 220px; }
+    .m3 { --x: 260px; --y: -30px; --z: -55px; --s: 1.28; --h: 255px; }
+    .m4 { --x: 10px; --y: 230px; --z: 135px; --s: .86; --h: 210px; }
+    .m5 { --x: 420px; --y: 260px; --z: -150px; --s: .72; --h: 190px; }
+
+    .signal {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #fff 0 14%, #bbccd7 22%, #b600a8 52%, transparent 72%);
+      box-shadow:
+        0 0 28px rgba(182, 0, 168, .72),
+        0 0 80px rgba(190, 76, 0, .36);
+      transform:
+        rotateZ(var(--signal-angle, 0deg))
+        translateX(min(35vw, 380px))
+        rotateZ(calc(var(--signal-angle, 0deg) * -1))
+        translateZ(150px);
+    }
+
+    .signal::after {
+      content: "";
+      position: absolute;
+      inset: -16px;
+      border-radius: inherit;
+      border: 1px solid rgba(215, 226, 234, .36);
+      animation: pulse 1.9s ease-out infinite;
+    }
+
+    @keyframes pulse {
+      from { transform: scale(.7); opacity: .72; }
+      to { transform: scale(2.6); opacity: 0; }
+    }
+
+    .hud {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      align-items: center;
+      grid-template-columns: minmax(18px, 1fr) minmax(280px, 1180px) minmax(18px, 1fr);
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .copy {
+      grid-column: 2;
+      width: min(620px, 92vw);
+      transform-style: preserve-3d;
+      transform: perspective(900px) rotateY(var(--copy-tilt, -10deg)) translateZ(70px);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: rgba(215, 226, 234, .72);
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 42px;
+      height: 1px;
+      background: linear-gradient(90deg, #b600a8, #be4c00);
+      box-shadow: 0 0 20px rgba(182, 0, 168, .7);
+    }
+
+    h1 {
+      max-width: 940px;
+      font-size: clamp(4.1rem, 12vw, 11rem);
+      line-height: .78;
+      letter-spacing: -.075em;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, #f4f8fb 0%, #646973 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 20px 40px rgba(0,0,0,.45));
+    }
+
+    .description {
+      max-width: 470px;
+      margin-top: 24px;
+      color: rgba(215, 226, 234, .78);
+      font-size: clamp(1rem, 1.6vw, 1.3rem);
+      line-height: 1.5;
+      font-weight: 300;
+    }
+
+    .progress-card {
+      position: fixed;
+      right: clamp(18px, 4vw, 54px);
+      bottom: clamp(18px, 5vw, 50px);
+      z-index: 22;
+      width: min(360px, calc(100vw - 36px));
+      padding: 18px;
+      border: 1px solid rgba(215, 226, 234, .16);
+      border-radius: 26px;
+      background: rgba(12, 12, 12, .46);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 18px 80px rgba(0,0,0,.42);
+      transform: perspective(900px) rotateX(8deg) rotateY(var(--card-y, -12deg)) translateZ(36px);
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 12px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: rgba(215, 226, 234, .72);
+    }
+
+    .bar {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(215, 226, 234, .12);
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      width: calc(var(--p, 0) * 100%);
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(123deg, #18011F 7%, #B600A8 37%, #7621B0 72%, #BE4C00 100%);
+      box-shadow: 0 0 24px rgba(182,0,168,.55);
+    }
+
+    .steps {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .step {
+      height: 48px;
+      border: 1px solid rgba(215,226,234,.12);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      color: rgba(215,226,234,.46);
+      transition: .25s ease;
+    }
+
+    .step.active {
+      color: #fff;
+      border-color: rgba(190,76,0,.55);
+      background: rgba(182,0,168,.16);
+      transform: translateZ(18px);
+    }
+
+    .scroll-space {
+      position: relative;
+      z-index: -1;
+      height: 560vh;
+    }
+
+    .grain {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+      opacity: .1;
+      background-image:
+        linear-gradient(115deg, transparent 0 48%, rgba(255,255,255,.8) 49%, transparent 50%),
+        radial-gradient(circle, rgba(255,255,255,.8) 1px, transparent 1px);
+      background-size: 180px 180px, 4px 4px;
+      mix-blend-mode: screen;
+    }
+
+    @media (max-width: 760px) {
+      body { min-height: 520vh; }
+      .scene-shell { perspective: 820px; }
+      .copy { transform: none; align-self: start; padding-top: 110px; }
+      h1 { font-size: clamp(3.6rem, 18vw, 6.5rem); }
+      .description { max-width: 320px; }
+      .progress-card { left: 18px; right: 18px; bottom: 18px; width: auto; transform: none; }
+      .world { transform: translateZ(var(--camera-z, -240px)) rotateX(65deg) rotateY(var(--camera-y, 0deg)) translate3d(var(--camera-pan-x, 0px), var(--camera-pan-y, 0px), 0); }
+      .mountain { --s: .72; }
+      .m2 { --x: -255px; }
+      .m3 { --x: 165px; }
+      .m5 { --x: 230px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .world, .progress-card, .copy, .step { transition: none; }
+      .signal::after { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">3D</a>
+    <a class="back-link" href="/">Back to test site</a>
+  </header>
+
+  <main class="scene-shell" aria-label="Scroll-driven 3D mountain scene">
+    <div class="world" id="world" aria-hidden="true">
+      <div class="orbit-path"></div>
+      <div class="mountain m1"><div class="face front"></div><div class="face right"></div><div class="face left"></div><div class="face back"></div><div class="peak"></div></div>
+      <div class="mountain m2"><div class="face front"></div><div class="face right"></div><div class="face left"></div><div class="face back"></div><div class="peak"></div></div>
+      <div class="mountain m3"><div class="face front"></div><div class="face right"></div><div class="face left"></div><div class="face back"></div><div class="peak"></div></div>
+      <div class="mountain m4"><div class="face front"></div><div class="face right"></div><div class="face left"></div><div class="face back"></div><div class="peak"></div></div>
+      <div class="mountain m5"><div class="face front"></div><div class="face right"></div><div class="face left"></div><div class="face back"></div><div class="peak"></div></div>
+      <div class="signal"></div>
+    </div>
+  </main>
+
+  <section class="hud" aria-label="Mountain orbit status">
+    <div class="copy">
+      <div class="eyebrow">3D UI scroll test</div>
+      <h1 id="sceneTitle">Orbit the peaks</h1>
+      <p class="description" id="sceneText">Scroll to move the camera around a floating mountain range. The interface uses perspective, rotateX, rotateY, translateZ, and layered depth instead of flat parallax.</p>
+    </div>
+  </section>
+
+  <aside class="progress-card" aria-label="Scroll progress">
+    <div class="progress-label">
+      <span id="phase">Approach</span>
+      <span id="pct">0%</span>
+    </div>
+    <div class="bar"><span id="bar"></span></div>
+    <div class="steps" aria-hidden="true">
+      <div class="step active">Near</div>
+      <div class="step">Ridge</div>
+      <div class="step">Orbit</div>
+      <div class="step">Exit</div>
+    </div>
+  </aside>
+
+  <div class="scroll-space"></div>
+  <div class="grain"></div>
+
+  <script>
+    const root = document.documentElement;
+    const title = document.getElementById("sceneTitle");
+    const text = document.getElementById("sceneText");
+    const phase = document.getElementById("phase");
+    const pct = document.getElementById("pct");
+    const bar = document.getElementById("bar");
+    const steps = [...document.querySelectorAll(".step")];
+
+    const scenes = [
+      ["Orbit the peaks", "Scroll to move the camera around a floating mountain range. The interface uses perspective, rotateX, rotateY, translateZ, and layered depth instead of flat parallax.", "Approach"],
+      ["Cut the ridge", "The camera banks around the front peak while the signal bead traces a circular path through the valley.", "Ridge"],
+      ["Pass behind", "Depth flips: near mountains slide away, rear peaks become foreground, and the UI card tilts with the orbit.", "Orbit"],
+      ["Exit the range", "The route opens outward like a 3D interface prototype for spatial dashboards, portfolios, or product storytelling.", "Exit"]
+    ];
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function update() {
+      const max = document.body.scrollHeight - innerHeight;
+      const p = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
+      const angle = p * 355 - 28;
+      const bank = Math.sin(p * Math.PI * 2) * 7;
+      const x = Math.sin(p * Math.PI * 2) * -90;
+      const y = Math.cos(p * Math.PI * 2) * 42;
+      const zoom = -90 - Math.sin(p * Math.PI) * 210;
+      const tilt = 58 + Math.sin(p * Math.PI * 2 + .8) * 7;
+      const copyTilt = -12 + Math.sin(p * Math.PI * 2) * 14;
+      const cardTilt = -14 + Math.cos(p * Math.PI * 2) * 18;
+      const sceneIndex = Math.min(3, Math.floor(p * 4));
+
+      root.style.setProperty("--p", p.toFixed(4));
+      root.style.setProperty("--camera-y", `${angle.toFixed(2)}deg`);
+      root.style.setProperty("--camera-r", `${bank.toFixed(2)}deg`);
+      root.style.setProperty("--camera-x", `${tilt.toFixed(2)}deg`);
+      root.style.setProperty("--camera-z", `${zoom.toFixed(2)}px`);
+      root.style.setProperty("--camera-pan-x", `${x.toFixed(2)}px`);
+      root.style.setProperty("--camera-pan-y", `${y.toFixed(2)}px`);
+      root.style.setProperty("--signal-angle", `${(angle * -1.25).toFixed(2)}deg`);
+      root.style.setProperty("--copy-tilt", `${copyTilt.toFixed(2)}deg`);
+      root.style.setProperty("--card-y", `${cardTilt.toFixed(2)}deg`);
+
+      const [nextTitle, nextText, nextPhase] = scenes[sceneIndex];
+      if (title.textContent !== nextTitle) {
+        title.textContent = nextTitle;
+        text.textContent = nextText;
+        phase.textContent = nextPhase;
+      }
+
+      pct.textContent = `${Math.round(p * 100)}%`;
+      bar.style.width = `${p * 100}%`;
+      steps.forEach((step, index) => step.classList.toggle("active", index <= sceneIndex));
+    }
+
+    addEventListener("scroll", update, { passive: true });
+    addEventListener("resize", update);
+    addEventListener("pointermove", (event) => {
+      root.style.setProperty("--mx", `${event.clientX}px`);
+      root.style.setProperty("--my", `${event.clientY}px`);
+    }, { passive: true });
+    update();
+  </script>
+</body>
+</html>

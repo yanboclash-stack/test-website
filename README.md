@@ -9,3 +9,8 @@ Open `index.html` directly, or run a static server from this folder.
 ## Deploy
 
 This is a static site. Vercel can deploy it directly from the repository root with no build command.
+
+## Pages
+
+- `/` — original 3D creator skill test
+- `/mountains.html` — 3D UI scroll-orbit mountain test
